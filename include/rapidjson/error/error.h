@@ -85,6 +85,7 @@ enum ParseErrorCode {
     kParseErrorNumberMissFraction,              //!< Miss fraction part in number.
     kParseErrorNumberMissExponent,              //!< Miss exponent in number.
 
+    kParseErrorNestedTooDeep,                   //!< Nested too deep.
     kParseErrorTermination,                     //!< Parsing was terminated.
     kParseErrorUnspecificSyntaxError            //!< Unspecific syntax error.
 };

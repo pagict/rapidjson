@@ -544,8 +544,8 @@ public:
     /*! \param stackAllocator Optional allocator for allocating stack memory. (Only use for non-destructive parsing)
         \param stackCapacity stack capacity in bytes for storing a single decoded string.  (Only use for non-destructive parsing)
     */
-    GenericReader(StackAllocator* stackAllocator = 0, size_t stackCapacity = kDefaultStackCapacity) :
-        stack_(stackAllocator, stackCapacity), parseResult_(), state_(IterativeParsingStartState) {}
+    GenericReader(StackAllocator* stackAllocator = 0, size_t stackCapacity = kDefaultStackCapacity, int nested_depth=kDefaultCallStackDepth) :
+        stack_(stackAllocator, stackCapacity), parseResult_(), state_(IterativeParsingStartState), nested_depth_(nested_depth) {}
 
     //! Parse JSON text.
     /*! \tparam parseFlags Combination of \ref ParseFlag.
@@ -705,6 +705,15 @@ private:
         GenericReader& r_;
         ClearStackOnExit(const ClearStackOnExit&);
         ClearStackOnExit& operator=(const ClearStackOnExit&);
+    };
+
+    struct NestedProtector {
+        explicit NestedProtector(GenericReader& reader) : reader_(reader) { --reader_.nested_depth_; }
+        ~NestedProtector() { ++reader_.nested_depth_; }
+        bool Valid() const { return reader_.nested_depth_ >= 0;}
+
+     private:
+        GenericReader& reader_;
     };
 
     template<unsigned parseFlags, typename InputStream>
@@ -1750,6 +1759,10 @@ private:
     // Parse any JSON value
     template<unsigned parseFlags, typename InputStream, typename Handler>
     void ParseValue(InputStream& is, Handler& handler) {
+        NestedProtector np(*this);
+        if (!np.Valid())
+            RAPIDJSON_PARSE_ERROR(kParseErrorNestedTooDeep, is.Tell());
+
         switch (is.Peek()) {
             case 'n': ParseNull  <parseFlags>(is, handler); break;
             case 't': ParseTrue  <parseFlags>(is, handler); break;
@@ -2224,9 +2237,11 @@ private:
     }
 
     static const size_t kDefaultStackCapacity = 256;    //!< Default stack capacity in bytes for storing a single decoded string.
+    static const size_t kDefaultCallStackDepth = 256;   //!< Default callstack depth for nested objects
     internal::Stack<StackAllocator> stack_;  //!< A stack for storing decoded string temporarily during non-destructive parsing.
     ParseResult parseResult_;
     IterativeParsingState state_;
+    int nested_depth_;
 }; // class GenericReader
 
 //! Reader with UTF8 encoding and default allocator.
